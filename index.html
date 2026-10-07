@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0E1726" />
+  <title>LSTS Py Studio · Python 10</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
+  <link rel="icon" href="engine/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="engine/style.css" />
+  <style>
+    .hub { max-width: 1080px; margin: 0 auto; padding: 36px 20px 80px; }
+    .hub-hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: center; background: var(--ink); color: #DCE5F2; border-radius: 20px; padding: 32px; }
+    .hub-hero h1 { color: #fff; font-size: clamp(28px, 4vw, 40px); margin: 6px 0 10px; line-height: 1.15; }
+    .hub-hero p { margin: 0; color: #B9C6D8; }
+    .hub-hero .kicker { color: var(--yellow); }
+    .hub-code { background: var(--ed-bg); border: 1px solid #23304680; border-radius: 14px; padding: 16px 18px; font: 14px/1.7 var(--mono); color: var(--ed-text); white-space: pre; overflow-x: auto; }
+    .part { margin-top: 34px; }
+    .part h2 { display: flex; align-items: baseline; gap: 12px; color: var(--ink); font-size: 21px; margin: 0 0 14px; }
+    .part h2 small { font-size: 13px; color: var(--muted); font-weight: 500; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    .card { position: relative; display: block; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; text-decoration: none; color: inherit; box-shadow: var(--shadow); transition: transform .12s, border-color .12s; }
+    .card:hover { transform: translateY(-2px); border-color: #B7CCE2; }
+    .card .num { font: 700 12px var(--mono); color: var(--blue); letter-spacing: .08em; }
+    .card h3 { margin: 4px 0 6px; font-size: 17px; color: var(--ink); }
+    .card p { margin: 0; font-size: 13.5px; color: var(--muted); }
+    .card .badge { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 800 11px var(--font); }
+    .badge.gold { background: var(--yellow); color: var(--ink); box-shadow: 0 0 0 3px #F3E0A0; }
+    .badge.silver { background: #E3E8EF; color: var(--muted); box-shadow: 0 0 0 3px #EEF2F7; }
+    .card.soon { opacity: .55; pointer-events: none; box-shadow: none; }
+    .card.soon .num::after { content: " · sắp mở"; color: var(--muted); }
+    .me { margin-top: 14px; font-size: 13.5px; color: #B9C6D8; }
+    .me b { color: #fff; }
+    @media (max-width: 760px) { .hub-hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="logo"><i></i><i></i></span><span class="brand-text"><b>LSTS Py Studio</b><small>Python · Khối 10</small></span></a>
+  </header>
+  <main class="hub">
+    <section class="hub-hero">
+      <div>
+        <div class="kicker">LẬP TRÌNH PYTHON · KHỐI 10</div>
+        <h1>Chào mừng tới LSTS Py Studio</h1>
+        <p>Cùng Nova học Python từ dòng <code>print</code> đầu tiên tới khi tự làm một game bằng pygame. Mỗi bài: 4 chặng, 1 Boss, 1 chứng chỉ — và chặng Luyện thêm cho bạn muốn thử sức.</p>
+        <p class="me" id="me"></p>
+      </div>
+      <div class="hub-code">while hoc_sinh.con_hung_thu():
+    bai = hoc_bai_moi()
+    code(bai)
+    ha_boss(bai)
+lam_game(pygame)</div>
+    </section>
+    <section class="part"><h2>Phần A — Nền tảng <small>Bài 1–9</small></h2><div class="grid" id="partA"></div></section>
+    <section class="part"><h2>Phần B — Nâng cao và pygame <small>Bài 10–13</small></h2><div class="grid" id="partB"></div></section>
+    <section class="part"><h2>Phần C — Dự án game <small>nhóm 2–3 bạn · 4 tuần</small></h2><div class="grid" id="partC"></div></section>
+  </main>
+  <script>
+    "use strict";
+    const BAI = [
+      ["bai01", 1, "Python đầu tiên", "print, biến, int · float · str"], ["bai02", 2, "Nhập, xuất và toán tử", "input, đổi kiểu, // %, f-string"],
+      ["bai03", 3, "Rẽ nhánh", "if, elif, else, and · or · not"], ["bai04", 4, "Lặp for", "range, biến đếm, biến tổng"],
+      ["bai05", 5, "Lặp while", "while, break, random — trò đoán số"], ["bai06", 6, "List và tuple", "túi đồ, chỉ số, duyệt list"],
+      ["bai07", 7, "Xâu và dictionary", "xử lý chữ, bảng xếp hạng"], ["bai08", 8, "Hàm", "def, tham số, return, import"],
+      ["bai09", 9, "Lỗi, kiểm thử, ôn tập", "traceback, assert, try – except"]];
+    const SAU = [[10, "Class và đối tượng", "khuôn đúc nhân vật"], [11, "Pygame 1", "cửa sổ và vòng lặp game"],
+                 [12, "Pygame 2", "điều khiển và va chạm"], [13, "Pygame 3", "hình, âm thanh, màn chơi"]];
+    const DA = [["1", "Ý tưởng và bản mẫu"], ["2", "Chức năng chính"], ["3", "Hoàn thiện"], ["4", "Trình bày"]];
+    function hashText(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).toUpperCase().padStart(8, "0"); }
+    let badges = {}, st = null;
+    try {
+      st = JSON.parse(localStorage.getItem("py10:lastStudent") || "null");
+      if (st) badges = JSON.parse(localStorage.getItem(`py10:badges:${hashText(`${st.name}|${st.className}`.toLowerCase())}`) || "{}");
+    } catch { /* bỏ qua */ }
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    document.getElementById("partA").innerHTML = BAI.map(([id, n, t, d]) => `<a class="card" href="${id}/">
+      <div class="num">BÀI ${n}</div><h3>${t}</h3><p>${d}</p>${badges[id] ? `<span class="badge ${badges[id]}" title="Đã có chứng chỉ">B${n}</span>` : ""}</a>`).join("");
+    document.getElementById("partB").innerHTML = SAU.map(([n, t, d]) => `<div class="card soon"><div class="num">BÀI ${n}</div><h3>${t}</h3><p>${d}</p></div>`).join("");
+    document.getElementById("partC").innerHTML = DA.map(([n, t]) => `<div class="card soon"><div class="num">TUẦN DỰ ÁN ${n}</div><h3>${t}</h3><p>Game pygame của nhóm</p></div>`).join("");
+    const so = Object.keys(badges).length;
+    if (st) document.getElementById("me").innerHTML = `Học sinh trên máy này: <b>${esc(st.name)} · ${esc(st.className)}</b> — đã có <b>${so}</b> huy hiệu.`;
+  </script>
+</body>
+</html>
