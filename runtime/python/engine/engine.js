@@ -51,7 +51,7 @@ function save() {
 }
 function load(student) {
   const remote={...PyCloud.state(L.id)};const q=new URLSearchParams(location.search),steps=L.steps.filter(s=>s.kind!=='gate'&&(q.has('cuoi')||s.kind!=='boss')),index=q.has('cuoi')?steps.findIndex(s=>s.kind==='boss'):Number(q.get('chang'));if(q.has('chang')||q.has('cuoi'))remote.active=steps[index]?.id||steps[0].id;
-  state = { ...freshState(student), ...remote, student };
+  state = { ...freshState(student), ...remote, student };const oldIndex=L.steps.findIndex(s=>s.id===state.active);if(oldIndex>=0&&L.steps[oldIndex].kind==='gate')state.active=L.steps.slice(oldIndex+1).find(s=>s.kind!=='gate')?.id||STEPS[0].id;
   for(const field of ["passed","attempts","drafts","inputs","gates","stars"]) if(!state[field]||typeof state[field]!=="object"||Array.isArray(state[field]))state[field]={};
 }
 function selfStudy() {return Boolean(window.PORTAL_SELF_STUDY);}
@@ -95,7 +95,7 @@ const PyRun = (() => {
   function whenReady() { return ready || failed ? Promise.resolve() : new Promise(r => readyCbs.push(r)); }
   async function run(code, inputs = [], seed = null) {
     await whenReady();
-    if (!PyCloud.allowed()) return {ok:false,out:"",err:{type:"WebError",msg:"Cần đăng nhập.",tb:""}};
+    if (!PyCloud.allowed()) return {ok:false,out:"",err:{type:"WebError",msg:"Nhập tên/lớp và mở bài trước.",tb:""}};
     if (failed) return { ok: false, out: "", err: { type: "WebError", msg: "Không tải được Python. Kiểm tra mạng rồi tải lại trang (F5).", line: 0, tb: "" } };
     const id = ++seq;
     return new Promise(resolve => {
