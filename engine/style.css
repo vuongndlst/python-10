@@ -426,3 +426,22 @@ details.guess[open] .g-btn { visibility: hidden; }
   .nova-face { width: 48px; height: 48px; }
 }
 @media print { .topbar, .rail, .nova { display: none; } }
+
+/* Shared school accounts and optional, click-to-load lesson videos. */
+.school-controls {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;max-width:100%;}
+[hidden] {display:none!important;}
+#school-sync {font-size:11px;max-width:190px;color:var(--muted);}
+.topbar:has(.school-controls) {height:auto;min-height:58px;flex-wrap:wrap;padding-top:9px;padding-bottom:9px;}
+.school-controls .btn {padding:7px 10px;font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.python-media {border:1px solid var(--line);background:var(--card);border-radius:14px;padding:20px;margin:20px 0;}
+.python-media section + section {margin-top:24px;padding-top:18px;border-top:1px solid var(--line);}
+.python-media h3 {margin:8px 0;}
+.python-video {aspect-ratio:16/9;background:#0E1726;display:grid;place-items:center;border-radius:10px;overflow:hidden;}
+.python-video iframe {width:100%;height:100%;border:0;}
+.python-media small,.python-media .muted {display:block;font-size:12px;overflow-wrap:anywhere;}
+.cloud-conflict,.cloud-note {padding:16px;background:#fff5d8;color:#433616;border:1px solid #dbc67e;}
+.cloud-error,#school-error {color:#a51c30;}
+#school-dialog .modal-card {max-height:85vh;overflow:auto;}
+#school-dialog pre {white-space:pre-wrap;overflow-wrap:anywhere;}
+#school-dialog .field input,#school-dialog .field select {margin-top:5px;}
+@media(max-width:560px){.school-controls{width:100%;margin:0;}#school-sync{flex:1;max-width:none;} .topbar .top-actions{gap:5px;} .rail-head{display:block;} .python-media{padding:14px;} }

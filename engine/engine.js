@@ -1,3 +1,4 @@
+(()=>{
 /* Python 10 — engine dùng chung cho mọi bài (giao diện "LSTS Py Studio" cho khối 10)
    - Nội dung từng bài: window.LESSON (baiNN/lesson.js); khối nội dung dùng chung: engine/kit.js
    - Chạy Python thật bằng Pyodide trong Web Worker (engine/py-worker.js + engine/runner.py); quá 3 giây thì dừng
@@ -40,14 +41,20 @@ function freshState(student) {
   return { student, active: STEPS[0].id, passed: {}, attempts: {}, drafts: {}, inputs: {}, gates: {},
     xp: 0, combo: 0, stars: {}, startedAt: new Date().toISOString(), completedAt: null };
 }
-function storageKey() { return `${PREFIX}:${L.id}:${studentKey(state.student)}`; }
-function save() { if (!state) return; safeSet(storageKey(), JSON.stringify(state)); safeSet(`${PREFIX}:lastStudent`, JSON.stringify(state.student)); }
-function load(student) {
-  state = freshState(student);
-  const raw = safeGet(storageKey());
-  if (raw) { try { state = { ...state, ...JSON.parse(raw), student }; } catch { /* làm lại */ } }
-  save();
+function storageKey() { return `lsts:${PyCloud.user.id}:python-10:${PY10_CLOUD_CONFIG.runId}:${L.id}`; }
+function save() {
+  if (!state || !PyCloud.allowed()) return;
+  state.student = PYAccount.student();
+  state.completed = allRequiredDone();
+  if (state.completed) state.badge = isGold() ? "gold" : "silver";
+  PyCloud.save(L.id, state);
 }
+function load(student) {
+  const remote=PyCloud.state(L.id);
+  state = { ...freshState(student), ...remote, student };
+  for(const field of ["passed","attempts","drafts","inputs","gates","stars"]) if(!state[field]||typeof state[field]!=="object"||Array.isArray(state[field]))state[field]={};
+}
+function selfStudy() { return state?.navigationMode === "self-study"; }
 
 /* ---------- tiến độ ---------- */
 function stepDone(step) {
@@ -55,13 +62,13 @@ function stepDone(step) {
   if (step.kind === "extra") return true;
   return step.challenges.filter(c => !c.advanced).every(c => state.passed[c.id]);
 }
-function stepUnlocked(i) { return STEPS.slice(0, i).every(stepDone); }
+function stepUnlocked(i) { return selfStudy() || STEPS.slice(0, i).every(stepDone); }
 function bossStep() { return STEPS.find(s => s.kind === "boss"); }
-function allRequiredDone() { return REQUIRED.every(id => state.passed[id]) && STEPS.every(stepDone); }
+function allRequiredDone() { return REQUIRED.every(id => state.passed[id]) && STEPS.filter(s => s.kind !== "gate").every(stepDone); }
 function isGold() { const b = bossStep(); return allRequiredDone() && b.challenges.filter(c => c.advanced).every(c => state.passed[c.id]); }
 function activeStep() { return STEPS.find(s => s.id === state.active); }
 function percent() {
-  const all = STEPS.filter(s => s.kind !== "extra").flatMap(s => s.kind === "gate" ? [s.id] : s.challenges.filter(c => !c.advanced).map(c => c.id));
+  const all = STEPS.filter(s => s.kind !== "extra" && s.kind !== "gate").flatMap(s => s.challenges.filter(c => !c.advanced).map(c => c.id));
   const done = all.filter(id => state.passed[id] || state.gates[id]).length;
   return Math.round(100 * done / all.length);
 }
@@ -84,9 +91,11 @@ const PyRun = (() => {
     };
     worker.onerror = () => { failed = "worker"; status("Không tải được Python", "bad"); };
   }
+  function stop() { worker?.terminate(); worker=null; ready=false; failed="signed_out"; readyCbs.splice(0).forEach(f=>f()); for(const w of waiting.values()){clearTimeout(w.timer);w.resolve({out:"",err:{type:"WebError",msg:"Đã đóng phòng thực hành.",tb:""}})}waiting.clear(); }
   function whenReady() { return ready || failed ? Promise.resolve() : new Promise(r => readyCbs.push(r)); }
   async function run(code, inputs = [], seed = null) {
     await whenReady();
+    if (!PyCloud.allowed()) return {ok:false,out:"",err:{type:"WebError",msg:"Cần đăng nhập.",tb:""}};
     if (failed) return { ok: false, out: "", err: { type: "WebError", msg: "Không tải được Python. Kiểm tra mạng rồi tải lại trang (F5).", line: 0, tb: "" } };
     const id = ++seq;
     return new Promise(resolve => {
@@ -99,7 +108,7 @@ const PyRun = (() => {
       worker.postMessage({ id, code, inputs, seed });
     });
   }
-  return { start, run, whenReady, get ready() { return ready; } };
+  return { start, stop, run, whenReady, get ready() { return ready; } };
 })();
 
 /* ---------- lỗi Python → lời Nova ---------- */
@@ -273,7 +282,7 @@ function shell() {
     <aside class="rail" id="rail" aria-label="Lộ trình bài học"></aside>
     <main class="main"><div id="stepContainer"></div>
       <footer class="site-footer"><span>LSTS Py Studio · Python 10 · Bài ${L.number} · chạy Python thật bằng Pyodide</span>
-        <button id="resetBtn" class="text-button danger-link" type="button">Xoá dữ liệu trên máy này</button></footer>
+        <button id="resetBtn" class="text-button" type="button">Tải bản sao / tài khoản</button></footer>
     </main>
   </div>
   <div class="nova" id="nova">
@@ -283,25 +292,6 @@ function shell() {
     </div>
     <button class="nova-face" id="novaFace" type="button" title="Nova — bấm để xem lại lời nhắn">${novaSvg()}</button>
   </div>
-  <dialog id="identityDialog" class="modal">
-    <form id="identityForm" method="dialog" class="modal-card id-card">
-      <div class="id-face">${novaSvg("happy")}</div>
-      <p class="eyebrow">BÀI ${L.number} · ${esc(L.title.toUpperCase())}</p>
-      <h2>Chào bạn, mình là Nova.</h2>
-      <p class="muted">Mình là AI mentor của LSTS Py Studio. Nhập đúng họ tên và lớp — nếu bạn đã làm bài trên máy này, tiến độ sẽ được mở lại.</p>
-      <label class="field"><span>Họ và tên</span><input id="nameInput" type="text" autocomplete="name" minlength="2" maxlength="60" placeholder="Ví dụ: Nguyễn Minh Anh" required /></label>
-      <label class="field"><span>Lớp</span><select id="classInput" required><option value="" selected disabled>Chọn lớp</option>${CLASSES.map(c => `<option>${c}</option>`).join("")}</select></label>
-      <p class="privacy-note">Dùng chung máy? Học xong bấm vào tên mình ở góc trên rồi chọn <b>Học sinh mới</b>.</p>
-      <button class="btn primary wide" type="submit">Bắt đầu</button>
-    </form>
-  </dialog>
-  <dialog id="studentDialog" class="modal">
-    <div class="modal-card"><button class="close-x" type="button" data-close>×</button>
-      <p class="eyebrow">HỌC SINH</p><h2 id="sdName"></h2>
-      <p class="muted">Bấm <b>Học sinh mới</b> để người học sau không thấy bài của bạn (tiến độ của bạn vẫn được giữ, đăng nhập lại là thấy).</p>
-      <div class="row-btns"><button id="newStudentBtn" class="btn primary" type="button">Học sinh mới</button></div>
-    </div>
-  </dialog>
   <dialog id="errorsDialog" class="modal wide">
     <div class="modal-card"><button class="close-x" type="button" data-close>×</button>
       <p class="eyebrow">QUY TẮC "3 TRƯỚC THẦY"</p><h2>Lỗi thường gặp</h2>
@@ -321,7 +311,7 @@ function shell() {
   <dialog id="certDialog" class="modal wide">
     <div class="modal-card"><button class="close-x" type="button" data-close>×</button>
       <p class="eyebrow">BOSS ĐÃ BỊ HẠ</p><h2>Chứng chỉ Bài ${L.number}</h2>
-      <p class="muted">Lưu chứng chỉ dạng ảnh PNG.</p>
+      <p class="muted">Lưu chứng chỉ tự học dạng PNG. Đây là kết quả quá trình, chưa phải điểm do giáo viên xác minh.</p>
       <canvas id="certCanvas" width="1600" height="1000" aria-label="Chứng chỉ"></canvas>
       <div class="row-btns"><button id="savePng" class="btn primary" type="button">Lưu PNG</button>
         <button id="printPdf" class="btn" type="button">In / Lưu PDF</button>
@@ -337,7 +327,7 @@ function renderRail() {
   rail.innerHTML = `
     <div class="rail-head"><div class="eyebrow">BÀI ${L.number}</div><div class="rail-title">${esc(L.title)}</div>
       <div class="rail-story">${esc(L.story)}</div>
-      <div class="prog"><div class="prog-bar" style="width:${pct}%"></div></div><div class="prog-text">${pct}% hoàn thành</div></div>
+      <div class="prog"><div class="prog-bar" style="width:${pct}%"></div></div><div class="prog-text">${pct}% nhiệm vụ đạt</div><button id="studyMode" class="btn">${selfStudy()?"Học theo lớp":"Tự học / học bù"}</button><p class="muted">Học bù mở điều hướng, không tự ghi đạt nhiệm vụ. Mã đồng bộ phục vụ nhịp lớp; hoàn thành cần đạt các nhiệm vụ bắt buộc và Boss.</p></div>
     <ol class="steps">${STEPS.map((s, i) => {
       const un = stepUnlocked(i), done = stepDone(s), act = state.active === s.id;
       const ex = s.kind === "extra";
@@ -348,6 +338,7 @@ function renderRail() {
       return `<li><button type="button" class="st ${s.kind} ${done ? "done" : ""} ${act ? "active" : ""}" data-step="${s.id}" ${un ? "" : "disabled"}>
         <span class="st-mark">${mark}</span><span class="st-text"><small>${sub}</small>${esc(s.nav)}</span>${prog}</button></li>`;
     }).join("")}</ol>`;
+  $("#studyMode").onclick=()=>{state.navigationMode=selfStudy()?"guided":"self-study";save();renderAll(true)};
   $$(".st", rail).forEach(b => b.addEventListener("click", () => go(b.dataset.step)));
 }
 function go(id) { state.active = id; save(); renderAll(true); window.scrollTo({ top: 0, behavior: "instant" }); }
@@ -397,8 +388,9 @@ function renderStage(step) {
       <div class="foot-btns">${isBoss || !next ? `<button id="certBtn" class="btn gold big" type="button">${ic("cert")} Mở chứng chỉ</button>` : ""}
         ${next ? `<button id="nextBtn" class="btn ${isBoss ? "" : "primary"} big" type="button">${nextLabel(next)}</button>` : ""}</div></div>
   </article>`;
+  const media=document.createElement("div");$("#stepContainer .tasks").before(media);PYMedia.mount(media,L.media,step.id);
   step.challenges.forEach(bindChallenge);
-  $("#nextBtn")?.addEventListener("click", () => { if (stepDone(step)) go(next.id); });
+  $("#nextBtn")?.addEventListener("click", () => { if (stepDone(step) || selfStudy()) go(next.id); });
   $("#certBtn")?.addEventListener("click", openCertificate);
   refreshFooter(step);
 }
@@ -413,7 +405,7 @@ function bossBar(step) {
 }
 function refreshFooter(step) {
   const note = $("#stageNote"), done = stepDone(step), next = $("#nextBtn");
-  if (next) next.disabled = !done;
+  if (next) next.disabled = !done && !selfStudy();
   const req = step.challenges.filter(c => !c.advanced), hit = req.filter(c => state.passed[c.id]).length;
   const cnt = $("#secCount"); if (cnt) cnt.textContent = `${hit}/${req.length}`;
   if (step.kind === "extra") {
@@ -439,9 +431,9 @@ function renderGate(step) {
       <h1>${done ? "Đã đồng bộ với lớp" : "Điểm dừng — nhìn lên bảng"}</h1>
       <p class="hero-sub">${done ? "Bạn đi tiếp được rồi." : "Cả lớp dừng ở đây để cùng chốt kiến thức. Đừng đi tiếp một mình."}</p>
     </header>
-    <ol class="gate-steps">${step.todo.map((t, i) => `<li><span>${i + 1}</span><div>${t}</div></li>`).join("")}</ol>
+    ${selfStudy()?`<p class="cloud-note">Học bù: làm các việc dưới đây rồi tiếp tục học. Không cần mã đồng bộ; mã và kết quả nhiệm vụ được ghi riêng.</p>`:""}<ol class="gate-steps">${step.todo.map((t, i) => `<li><span>${i + 1}</span><div>${t}</div></li>`).join("")}</ol>
     <div class="unlock">
-      ${done ? `<button id="gateNext" class="btn primary big" type="button">${nextLabel(next)}</button>`
+      ${done || selfStudy() ? `<button id="gateNext" class="btn primary big" type="button">${nextLabel(next)}</button>`
         : `<div class="term-login"><div class="tl-head">sync@py-studio</div>
             <label for="gateCode" class="tl-label">$ nhập mã đồng bộ (thầy hiện trên slide sau phần luyện tập nhóm)</label>
             <div class="tl-row"><span class="tl-prompt">›</span><input id="gateCode" type="text" autocomplete="off" spellcheck="false" maxlength="20" placeholder="MÃ…" />
@@ -653,12 +645,14 @@ function bindEditor(c, card) {
   runBtn.addEventListener("click", async () => {
     busy(true); out.innerHTML = `<span class="muted">Đang chạy…</span>`;
     const r = await PyRun.run(ta.value, linesOf(stdin ? stdin.value : ""), c.seed ?? null);
+    if(!state || !PyCloud.allowed())return;
     busy(false); showRun(out, r, ta.value);
   });
   checkBtn.addEventListener("click", async ev => {
     busy(true); out.innerHTML = `<span class="muted">Đang chấm…</span>`;
     attempt(c.id);
     const v = await checkCode(c, ta.value, stdin ? stdin.value : "");
+    if(!state || !PyCloud.allowed())return;
     busy(false);
     if (v.input != null && stdin) { stdin.value = v.input; stdin.rows = Math.max(2, linesOf(v.input).length); }
     showRun(out, v.run, ta.value);
@@ -732,6 +726,7 @@ function nextOpenCard(card) {
 }
 
 function pass(c, card, msg, btn, starNow = false) {
+  if(!state || !PyCloud.allowed())return;
   const first = !state.passed[c.id];
   let extra = "";
   if (first) {
@@ -776,11 +771,9 @@ function miss(card, msg) {
 /* ---------- huy hiệu & chứng chỉ ---------- */
 function saveBadge() {
   if (!allRequiredDone()) return;
-  const key = `${PREFIX}:badges:${studentKey(state.student)}`;
-  let b = {}; try { b = JSON.parse(safeGet(key) || "{}"); } catch { /* bỏ qua */ }
-  b[L.id] = isGold() ? "gold" : "silver"; safeSet(key, JSON.stringify(b));
+  state.badge = isGold() ? "gold" : "silver";
 }
-function certId() { return `PY10-B${String(L.number).padStart(2, "0")}-${state.student.className}-${hashText(`${state.student.name}|${state.student.className}|${L.id}|${state.completedAt}`)}`; }
+function certId() { return `PY10-B${String(L.number).padStart(2, "0")}-${state.student.className}-${hashText(`${state.student.userId}|${L.id}|${state.completedAt}`)}`; }
 function openCertificate() {
   if (!allRequiredDone()) return;
   drawCertificate();
@@ -848,26 +841,12 @@ function printPdf() {
 }
 
 /* ---------- khởi động ---------- */
-function clearAll() {
-  if (!confirm("Xoá toàn bộ bài làm Python 10 trên trình duyệt này (tất cả học sinh, tất cả bài)?")) return;
-  try { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(PREFIX)) ks.push(k); } ks.forEach(k => localStorage.removeItem(k)); } catch { /* bỏ qua */ }
-  location.reload();
-}
-function askIdentity() { $("#nameInput").value = ""; $("#classInput").value = ""; $("#identityDialog").showModal(); }
-
 function boot() {
   shell();
   PyRun.start();
-  $("#identityForm").addEventListener("submit", e => {
-    e.preventDefault();
-    const name = $("#nameInput").value.trim().replace(/\s+/g, " "), className = $("#classInput").value;
-    if (name.length < 2 || !CLASSES.includes(className)) return;
-    load({ name, className }); $("#identityDialog").close(); renderAll(true);
-  });
-  $("#identityDialog").addEventListener("cancel", e => e.preventDefault());
-  $("#studentBtn").addEventListener("click", () => { if (!state) return; $("#sdName").textContent = `${state.student.name} · ${state.student.className}`; $("#studentDialog").showModal(); });
-  $("#newStudentBtn").addEventListener("click", () => { $("#studentDialog").close(); state = null; askIdentity(); });
-  $("#resetBtn").addEventListener("click", clearAll);
+  load(PYAccount.student());
+  $("#studentBtn").addEventListener("click", PYAccount.profile);
+  $("#resetBtn").addEventListener("click", PYAccount.profile);
   $("#errorsBtn").addEventListener("click", () => $("#errorsDialog").showModal());
   $("#soundBtn").addEventListener("click", () => { safeSet(`${PREFIX}:sound`, soundOn() ? "off" : "on"); $("#soundBtn").innerHTML = ic(soundOn() ? "sound" : "mute"); });
   $$("[data-close]").forEach(b => b.addEventListener("click", () => b.closest("dialog").close()));
@@ -877,7 +856,15 @@ function boot() {
   $("#novaFace").addEventListener("click", () => { const b = $("#novaMsg"); if (b.classList.contains("hidden") && novaLast) b.classList.remove("hidden"); else b.classList.add("hidden"); });
   $("#soundBtn").innerHTML = ic(soundOn() ? "sound" : "mute");
   guardCopy();
-  askIdentity();
+  renderAll(true);
+  PYAccount.controls();
 }
 
-boot();
+window.PY_ENGINE={
+ remoteState(){if(!PyCloud.allowed())return;load(PYAccount.student());renderAll(true)},
+ profileChanged(){if(!state||!PyCloud.allowed())return;state.student=PYAccount.student();updateTop()},
+ dispose(){PyRun.stop();state=null;}
+};
+if(PyCloud.allowed())boot();
+
+})();

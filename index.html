@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
   <link rel="icon" href="engine/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="engine/style.css" />
+  <link rel="stylesheet" href="engine/style.css?v=344a8021fa79" />
   <style>
     .hub { max-width: 1080px; margin: 0 auto; padding: 36px 20px 80px; }
     .hub-hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: center; background: var(--ink); color: #DCE5F2; border-radius: 20px; padding: 32px; }
@@ -45,8 +45,8 @@
       <div>
         <div class="kicker">LẬP TRÌNH PYTHON · KHỐI 10</div>
         <h1>Chào mừng tới LSTS Py Studio</h1>
-        <p>Cùng Nova học Python từ dòng <code>print</code> đầu tiên tới khi tự làm một game bằng pygame. Mỗi bài: 4 chặng, 1 Boss, 1 chứng chỉ — và chặng Luyện thêm cho bạn muốn thử sức.</p>
-        <p class="me" id="me"></p>
+        <p>Cùng Nova học Python từ dòng <code>print</code> đầu tiên tới khi tự làm một game bằng pygame. Mỗi bài: các chặng học, 1 Boss, 1 chứng chỉ tự học — và chặng Luyện thêm cho bạn muốn thử sức.</p>
+        <p class="me" id="me">Đăng nhập để tiếp tục học trên mọi thiết bị.</p>
       </div>
       <div class="hub-code">while hoc_sinh.con_hung_thu():
     bai = hoc_bai_moi()
@@ -71,10 +71,6 @@ lam_game(pygame)</div>
     const DA = [["1", "Ý tưởng và bản mẫu"], ["2", "Chức năng chính"], ["3", "Hoàn thiện"], ["4", "Trình bày"]];
     function hashText(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).toUpperCase().padStart(8, "0"); }
     let badges = {}, st = null;
-    try {
-      st = JSON.parse(localStorage.getItem("py10:lastStudent") || "null");
-      if (st) badges = JSON.parse(localStorage.getItem(`py10:badges:${hashText(`${st.name}|${st.className}`.toLowerCase())}`) || "{}");
-    } catch { /* bỏ qua */ }
     const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     document.getElementById("partA").innerHTML = BAI.map(([id, n, t, d]) => `<a class="card" href="${id}/">
       <div class="num">BÀI ${n}</div><h3>${t}</h3><p>${d}</p>${badges[id] ? `<span class="badge ${badges[id]}" title="Đã có chứng chỉ">B${n}</span>` : ""}</a>`).join("");
@@ -83,5 +79,5 @@ lam_game(pygame)</div>
     const so = Object.keys(badges).length;
     if (st) document.getElementById("me").innerHTML = `Học sinh trên máy này: <b>${esc(st.name)} · ${esc(st.className)}</b> — đã có <b>${so}</b> huy hiệu.`;
   </script>
-</body>
+<script src="engine/supabase.js?v=d6a5c4414a5d"></script><script src="config.js?v=2cbc4fe754c2"></script><script src="engine/cloud.js?v=c9c2daf2d0b9"></script><script src="engine/account.js?v=9d573086a020"></script></body>
 </html>
