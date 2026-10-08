@@ -62,7 +62,7 @@ function stepDone(step) {
   if (step.kind === "extra") return true;
   return step.challenges.filter(c => !c.advanced).every(c => state.passed[c.id]);
 }
-function stepUnlocked(i) { return selfStudy() || STEPS.slice(0, i).every(stepDone); }
+function stepUnlocked(i) { return Boolean(state.completedAt) || STEPS.slice(0, i).every(stepDone); }
 function bossStep() { return STEPS.find(s => s.kind === "boss"); }
 function allRequiredDone() { return REQUIRED.every(id => state.passed[id]) && STEPS.filter(s => s.kind !== "gate").every(stepDone); }
 function isGold() { const b = bossStep(); return allRequiredDone() && b.challenges.filter(c => c.advanced).every(c => state.passed[c.id]); }
@@ -408,7 +408,7 @@ function bossBar(step) {
 }
 function refreshFooter(step) {
   const note = $("#stageNote"), done = stepDone(step), next = $("#nextBtn");
-  if (next) next.disabled = !done && !selfStudy();
+  if (next) next.disabled = !done;
   const req = step.challenges.filter(c => !c.advanced), hit = req.filter(c => state.passed[c.id]).length;
   const cnt = $("#secCount"); if (cnt) cnt.textContent = `${hit}/${req.length}`;
   if (step.kind === "extra") {
@@ -518,7 +518,7 @@ function renderChallenge(c) {
 function stepOf(c) { return STEPS.find(s => (s.challenges || []).some(x => x.id === c.id)); }
 function starRow(c) {
   const used = state.stars[stepOf(c).id];
-  if (used && used !== c.id) return `<div class="star-row used">${ic("star")} Chặng này bạn đã dùng Ngôi sao hi vọng.</div>`;
+  if (used || state.attempts[c.id] || state.passed[c.id]) return `<div class="star-row used">${ic("star")} Chặng này bạn đã dùng Ngôi sao hi vọng.</div>`;
   return `<div class="star-row" data-star><button type="button" class="star-toggle" aria-pressed="false">${ic("star")}<span>Ngôi sao hi vọng</span></button>
     <span class="star-rule">Đúng ngay lần này: <b>EXP ×2</b> · Sai: <b>−${STAR_LOSS} EXP</b> · mỗi chặng 1 lần</span></div>`;
 }
@@ -553,7 +553,7 @@ function bindChallenge(c) {
       if (!sel) return result(card, "info", "Chọn một đáp án trước nhé.");
       const opts = c.options.map(o => (typeof o === "string" ? { text: o } : o));
       const picked = opts[Number(sel.value)], right = picked.text === c.answer;
-      const starNow = star && !state.passed[c.id];
+      const starNow = star && !state.passed[c.id] && !state.attempts[c.id] && !state.stars[stepOf(c).id];
       if (starNow) state.stars[stepOf(c).id] = c.id;
       star = false; $("[data-star]", card)?.remove();
       attempt(c.id);
