@@ -14,10 +14,10 @@ ready.then(r => postMessage({ kind: "ready", ver: r.ver }))
   .catch(e => postMessage({ kind: "fail", error: String(e && e.message || e) }));
 
 onmessage = async e => {
-  const { id, code, inputs, seed } = e.data;
+  const { id, code, inputs, seed, echo } = e.data;
   try {
     const { py, chay } = await ready;
-    const res = chay(code, py.toPy(inputs || []), seed == null ? undefined : seed);
+    const res = chay(code, py.toPy(inputs || []), seed == null ? undefined : seed, echo !== false);
     const obj = res.toJs({ dict_converter: Object.fromEntries });
     res.destroy();
     postMessage({ kind: "result", id, out: obj.out, err: obj.err || null });

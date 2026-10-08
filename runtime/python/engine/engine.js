@@ -93,7 +93,7 @@ const PyRun = (() => {
   }
   function stop() { worker?.terminate(); worker=null; ready=false; failed="signed_out"; readyCbs.splice(0).forEach(f=>f()); for(const w of waiting.values()){clearTimeout(w.timer);w.resolve({out:"",err:{type:"WebError",msg:"Đã đóng phòng thực hành.",tb:""}})}waiting.clear(); }
   function whenReady() { return ready || failed ? Promise.resolve() : new Promise(r => readyCbs.push(r)); }
-  async function run(code, inputs = [], seed = null) {
+  async function run(code, inputs = [], seed = null, options = {}) {
     await whenReady();
     if (!PyCloud.allowed()) return {ok:false,out:"",err:{type:"WebError",msg:"Nhập tên/lớp và mở bài trước.",tb:""}};
     if (failed) return { ok: false, out: "", err: { type: "WebError", msg: "Không tải được Python. Kiểm tra mạng rồi tải lại trang (F5).", line: 0, tb: "" } };
@@ -105,11 +105,13 @@ const PyRun = (() => {
         resolve({ ok: false, out: "", err: { type: "Timeout", msg: "", line: 0, tb: "" } });
       }, RUN_LIMIT_MS + (ready ? 0 : 15000));
       waiting.set(id, { timer, resolve: m => resolve({ ok: !m.err, out: m.out || "", err: m.err }) });
-      worker.postMessage({ id, code, inputs, seed });
+      worker.postMessage({ id, code, inputs, seed, echo: options.echo !== false });
     });
   }
   return { start, stop, run, whenReady, get ready() { return ready; } };
 })();
+// The optional project panel shares the same bounded worker and input contract.
+window.PyRun=PyRun;
 
 /* ---------- lỗi Python → lời Nova ---------- */
 function friendlyError(err, code) {
@@ -234,6 +236,7 @@ function nova(html, mood = "idle", ms = 0) {
   $("#novaText").innerHTML = html;
   $("#novaFace").innerHTML = novaSvg(mood);
   box.className = `nova-msg ${mood}`;
+  if(sessionStorage.getItem('lsts-hints-open:'+PortalCloud.user.id)!=='1')box.classList.add('hidden');
   clearTimeout(novaTimer);
   if (ms) novaTimer = setTimeout(() => box.classList.add("hidden"), ms);
 }
@@ -371,7 +374,7 @@ function renderStage(step) {
   const next = STEPS[STEPS.indexOf(step) + 1];
   const req = step.challenges.filter(c => !c.advanced), adv = step.challenges.filter(c => c.advanced);
   $("#stepContainer").innerHTML = `
-  <article class="stage ${isBoss ? "boss" : ""}">
+  <article class="stage ${isBoss ? "boss" : ""}" data-stage="${esc(step.id)}">
     <header class="hero">
       <div class="kicker">${esc(step.kicker)}</div>
       <h1>${esc(step.title)}</h1>

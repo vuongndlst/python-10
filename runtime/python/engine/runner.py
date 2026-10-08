@@ -25,7 +25,7 @@ def _tb_text(e, dong_code=()):
     return "\n".join(dong)
 
 
-def _chay(code, inputs=(), seed=None):
+def _chay(code, inputs=(), seed=None, echo=True):
     out = io.StringIO()
     hang = [str(x) for x in inputs]
 
@@ -34,7 +34,8 @@ def _chay(code, inputs=(), seed=None):
         if not hang:
             raise EOFError(_HET_NHAP)
         v = hang.pop(0)
-        out.write(v + "\n")
+        if echo:
+            out.write(v + "\n")
         return v
 
     g = {"__name__": "__main__", "__builtins__": builtins}
