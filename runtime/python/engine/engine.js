@@ -275,7 +275,7 @@ function shell() {
     <div class="crumb"><span>Bài ${L.number}</span><b>${esc(L.title)}</b></div>
     <div class="top-actions">
       <span id="pyStatus" class="py-status loading">Python đang khởi động…</span>
-      <span class="xp-pill" id="xpPill">${ic("bolt")}<b>0</b> EXP</span>
+      <span class="xp-pill" id="xpPill">${ic("bolt")}<b>0</b> XP</span>
       <button id="errorsBtn" class="icon-btn" type="button" title="Lỗi thường gặp">${ic("bug")}<span>Lỗi thường gặp</span></button>
       <button id="soundBtn" class="icon-btn only" type="button" title="Bật/tắt âm thanh"></button>
       <button id="studentBtn" class="icon-btn" type="button" title="Đổi học sinh">${ic("user")}<span id="studentText">—</span></button>
@@ -443,7 +443,7 @@ function renderGate(step) {
             <button id="gateBtn" class="btn primary" type="button">Đồng bộ</button></div>
             <div id="gateMsg" class="tl-msg" role="status"></div></div>`}
     </div>
-    ${step.challenges && step.challenges.length ? `<section class="tasks bonus"><h2 class="sec-h">Trong lúc chờ<span class="sec-sub">nhiệm vụ phụ · không bắt buộc · +EXP</span></h2>${step.challenges.map(renderChallenge).join("")}</section>` : ""}
+    ${step.challenges && step.challenges.length ? `<section class="tasks bonus"><h2 class="sec-h">Trong lúc chờ<span class="sec-sub">nhiệm vụ phụ · không bắt buộc · +XP</span></h2>${step.challenges.map(renderChallenge).join("")}</section>` : ""}
   </article>`;
   step.challenges?.forEach(bindChallenge);
   $("#gateNext")?.addEventListener("click", () => go(next.id));
@@ -506,7 +506,7 @@ function renderChallenge(c) {
   const hints = c.hints || (c.hint ? [c.hint] : []);
   return `
   <article class="task ${passed ? "passed" : ""} ${c.advanced ? "advanced" : ""} ${c.bonus ? "bonus" : ""}" data-card="${c.id}">
-    <header class="task-head"><div class="task-meta"><span class="task-tag">${esc(tag)}</span><span class="task-xp">${c.bonus ? "+EXP" : c.advanced ? "Nâng cao" : c.extra ? `Luyện thêm${c.level ? " · " + "★".repeat(c.level) : ""}` : "+10 EXP"}</span></div>
+    <header class="task-head"><div class="task-meta"><span class="task-tag">${esc(tag)}</span><span class="task-xp">${c.bonus ? "+XP" : c.advanced ? "Nâng cao" : c.extra ? `Luyện thêm${c.level ? " · " + "★".repeat(c.level) : ""}` : "+10 XP"}</span></div>
       <h3>${passed ? ic("check", "ok") : ""}${esc(c.title)}</h3><p class="task-prompt">${c.prompt}</p></header>
     <div class="task-body">${body}
       <div class="actions">${actions}${hints.length && !passed ? `<button class="btn ghost hint-btn" type="button" data-act="hint">${ic("hint")} Gợi ý</button>` : ""}</div>
@@ -520,7 +520,7 @@ function starRow(c) {
   const used = state.stars[stepOf(c).id];
   if (used || state.attempts[c.id] || state.passed[c.id]) return `<div class="star-row used">${ic("star")} Chặng này bạn đã dùng Ngôi sao hi vọng.</div>`;
   return `<div class="star-row" data-star><button type="button" class="star-toggle" aria-pressed="false">${ic("star")}<span>Ngôi sao hi vọng</span></button>
-    <span class="star-rule">Đúng ngay lần này: <b>EXP ×2</b> · Sai: <b>−${STAR_LOSS} EXP</b> · mỗi chặng 1 lần</span></div>`;
+    <span class="star-rule">Đúng ngay lần này: <b>XP ×2</b> · Sai: <b>−${STAR_LOSS} XP</b> · mỗi chặng 1 lần</span></div>`;
 }
 
 function result(card, type, msg, extra = "") {
@@ -542,27 +542,22 @@ function bindChallenge(c) {
   });
 
   if (c.type === "choice") {
-    let star = false;
-    $(".star-toggle", card)?.addEventListener("click", e => {
-      star = !star; const t = e.currentTarget;
-      t.classList.toggle("on", star); t.setAttribute("aria-pressed", String(star));
-      if (star) { beep("unlock"); nova(`<b>Ngôi sao hi vọng.</b> Đúng ngay lần này thì EXP nhân đôi, sai thì mất ${STAR_LOSS} EXP. Chắc chắn rồi hãy chọn.`, "think", 6000); }
-    });
+    const starControl=HopeStars.nativeMount(card,state,stepOf(c).id,c.id,save);
     $('[data-act="choice"]', card).addEventListener("click", ev => {
       const sel = $(`input[name="${c.id}"]:checked`, card);
       if (!sel) return result(card, "info", "Chọn một đáp án trước nhé.");
       const opts = c.options.map(o => (typeof o === "string" ? { text: o } : o));
       const picked = opts[Number(sel.value)], right = picked.text === c.answer;
-      const starNow = star && !state.passed[c.id] && !state.attempts[c.id] && !state.stars[stepOf(c).id];
+      const starNow = starControl?.selected() && !state.passed[c.id] && !state.attempts[c.id] && !state.stars[stepOf(c).id];
       if (starNow) state.stars[stepOf(c).id] = c.id;
-      star = false; $("[data-star]", card)?.remove();
+      if(starNow)delete state.starSelections[stepOf(c).id]; $("[data-star]", card)?.remove();
       attempt(c.id);
       $$(".choice", card).forEach(l => l.classList.remove("right", "wrong"));
       sel.closest(".choice").classList.add(right ? "right" : "wrong");
       if (right) pass(c, card, c.why || "Chính xác.", ev.currentTarget, starNow);
       else {
         let msg = esc(picked.why || "Chưa đúng. Đọc lại phần giải thích phía trên rồi thử lại.");
-        if (starNow) { state.xp = Math.max(0, state.xp - STAR_LOSS); msg += ` <b>Ngôi sao hi vọng: −${STAR_LOSS} EXP.</b>`; }
+        if (starNow) { state.xp = Math.max(0, state.xp - STAR_LOSS); msg += ` <b>Ngôi sao chưa thành công: −${STAR_LOSS} XP.</b>`; }
         miss(card, msg);
       }
     });
@@ -737,8 +732,8 @@ function pass(c, card, msg, btn, starNow = false) {
     let gain = XP_PASS;
     if (state.attempts[c.id] === 1) { state.combo += 1; gain += XP_FIRST_TRY; if (state.combo >= 2) { gain += state.combo * 2; extra = ` · chuỗi ×${state.combo}`; } }
     else state.combo = 0;
-    if (starNow) { gain *= 2; extra += " · Ngôi sao hi vọng: EXP ×2"; }
-    state.xp += gain; extra = ` <b>+${gain} EXP</b>${extra}`;
+    if (starNow) { gain *= 2; extra += " · Ngôi sao thành công"; }
+    state.xp += gain; extra = ` <b>+${gain} XP</b>${extra}`;
     if (allRequiredDone() && !state.completedAt) state.completedAt = new Date().toISOString();
     saveBadge();
   }
