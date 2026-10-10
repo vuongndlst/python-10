@@ -756,7 +756,7 @@ function pass(c, card, msg, btn, starNow = false) {
   if (step.kind === "boss" && first && allRequiredDone()) {
     beep("win"); confetti(null, true);
     nova("<b>Boss đã bị hạ.</b> Lưu chứng chỉ để nộp. Còn thời gian thì thử phần Nâng cao để lấy huy hiệu vàng.", "happy");
-    if (!c.advanced) setTimeout(openCertificate, 1100);
+    if (!c.advanced && !window.LessonCelebration) setTimeout(openCertificate, 1100);
   }
 }
 function miss(card, msg) {
@@ -772,7 +772,9 @@ function saveBadge() {
   state.badge = isGold() ? "gold" : "silver";
 }
 function certId() { return `PY10-B${String(L.number).padStart(2, "0")}-${state.student.className}-${hashText(`${state.student.userId}|${L.id}|${state.completedAt}`)}`; }
-function openCertificate() {
+window.LessonCelebration?.setCertificateOpener(()=>openCertificate(true));
+function openCertificate(bypass=false) {
+  if(bypass!==true&&window.LessonCelebration?.holdCertificate(()=>openCertificate(true)))return;
   if (!allRequiredDone()) return;
   drawCertificate();
   const link = $("#canvasLink"); if (CFG.canvasSubmissionUrl) { link.href = CFG.canvasSubmissionUrl; link.classList.remove("hidden"); }
