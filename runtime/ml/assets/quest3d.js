@@ -10,9 +10,9 @@
  * Âm thanh tự tạo bằng Web Audio (không tải file nhạc). Máy yếu: tự chuyển chế độ nhẹ.
  */
 import * as THREE from "three";
-import {upgradeActor,addLandmark} from "./blender-art.js?v=4753a04700cc";
-import {stationGame} from './quest-games.js?v=4753a04700cc';
-import {assignStation,startStation,finishStation} from './arcade-selection.js?v=4753a04700cc';
+import {upgradeActor,addLandmark} from "./blender-art.js?v=558e5ad5ece0";
+import {stationGame} from './quest-games.js?v=558e5ad5ece0';
+import {assignStation,startStation,finishStation} from './arcade-selection.js?v=558e5ad5ece0';
 
 const B = window.BAI;
 const CFG = Object.assign({ ten: "Thế giới " + B.tieu_de, trang_doc: "index.html",
@@ -25,7 +25,8 @@ const STYLE = {
   workshop: {sky:['#242039','#805B65','#D6A078'],ground:'#342E40',floor:'#54465A',segments:8,station:4,name:'Xưởng robot C++'},
   space: {sky:['#060B23','#19235B','#495791'],ground:'#11192E',floor:'#273651',segments:48,station:24,name:'Trạm không gian Python'},
   archive: {sky:['#092B36','#286C77','#85B8A5'],ground:'#16363C',floor:'#39676A',segments:4,station:4,name:'Thành phố dữ liệu'},
-  research: {sky:['#163838','#428B87','#A6CBB9'],ground:'#234A43',floor:'#47746B',segments:12,station:6,name:'Khu nghiên cứu ML'}
+  research: {sky:['#163838','#428B87','#A6CBB9'],ground:'#234A43',floor:'#47746B',segments:12,station:6,name:'Khu nghiên cứu ML'},
+  neural: {sky:['#0B0A2A','#3A1F7A','#8E7CD8'],ground:'#1B1846',floor:'#33307A',segments:16,station:8,name:'Phòng thí nghiệm nơ-ron'}
 }[THEME] || null;
 document.documentElement.dataset.worldTheme = THEME;
 const TIEN_TO = B.tien_to_luu || "ml1_";
@@ -246,7 +247,7 @@ function canhChuDe() {
     for(let k=0;k<4;k++){const h=5+(k%2)*2;const tower=new THREE.Mesh(new THREE.BoxGeometry(3,h,3),vl("#31516A"));tower.position.set(-7+k*4.5,h/2,-34);g.add(tower);const cap=new THREE.Mesh(new THREE.BoxGeometry(3.3,.22,3.3),k%2?light:pale);cap.position.set(-7+k*4.5,h+.2,-34);g.add(cap);}
   }
 }
-if(THEME==='research')canhChuDe();
+if(THEME==='research'||THEME==='neural')canhChuDe();
 
 // Distinct landmarks outside the walking route; no extra mandatory tasks.
 const LANDMARKS = [];
@@ -279,6 +280,15 @@ function courseLandmarks(){
    addShape(part,new THREE.CylinderGeometry(.4,.5,3,8),dark,-2,3,1.5);
    const arm=addShape(part,new THREE.BoxGeometry(2.7,.5,.6),bright,-.9,4.6,1.5);arm.rotation.z=-.3;
    LANDMARKS.push('gear-and-robot-arm');
+  }else if(THEME==='neural'){
+   // Three-layer neuron tower: glowing nodes, weighted links between layers.
+   const glow=vl(CFG.mau_phu,{emissive:CFG.mau_phu,emissiveIntensity:.55}),pts=[],layers=[3,4,2];
+   addShape(part,new THREE.CylinderGeometry(3.4,3.7,.5,8),dark,0,.25,0);
+   const pos=layers.map((n,l)=>Array.from({length:n},(_,k)=>new THREE.Vector3((l-1)*2.6,1.8+k*1.5+(4-n)*.75,0)));
+   pos.forEach((col,l)=>col.forEach(v=>addShape(part,new THREE.SphereGeometry(.45,14,10),l===1?glow:bright,v.x,v.y,v.z)));
+   for(let l=0;l<2;l++)for(const a of pos[l])for(const b of pos[l+1])pts.push(a,b);
+   part.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:CFG.mau,transparent:true,opacity:.55})));
+   LANDMARKS.push('neuron-tower');
   }else{
    // Laboratory greenhouse and connected feature points.
    addShape(part,new THREE.CylinderGeometry(3,3.3,.5,12),white,0,.25,0);
@@ -478,7 +488,7 @@ const TUONG = (() => {
 // ------------------------------------------------------------------ cột dữ liệu và mô-đun công nghệ trong quảng trường
 (() => {
   const vi = [];
-  for (let k = 0; k < 400 && vi.length < (CAM_UNG?12:THEME==='research'?26:20); k++) {
+  for (let k = 0; k < 400 && vi.length < (CAM_UNG?12:(THEME==='research'||THEME==='neural')?26:20); k++) {
     const a = rnd() * Math.PI * 2, r = 5.5 + rnd() * (R_DAO - 7.5);
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (Math.abs(r - 13.8) < 2.4) continue;
@@ -1073,7 +1083,7 @@ manDau.appendChild(h("div", { class: "q-the" }, [
   h("div", { class: "q-nho", text: B.khoa + " · " + B.nhan }),
   h("h1", { text: CFG.ten_dao }),
   h("p", { class: "q-cau", text: B.cau_hoi }),
-  h("p", { text: ({workshop:'Khám phá xưởng robot, bánh răng và bàn lắp ráp.',space:'Khám phá bệ phóng, tên lửa và dàn pin của trạm không gian.',archive:'Khám phá các kho dữ liệu và đường kết nối giữa chúng.',research:'Khám phá nhà kính nghiên cứu và các cụm dữ liệu theo chủ đề bài học.'})[THEME] + ' Hoàn thành trạm trước để mở trạm tiếp theo; khi vào bài, thế giới tạm dừng.' }),
+  h("p", { text: ({workshop:'Khám phá xưởng robot, bánh răng và bàn lắp ráp.',space:'Khám phá bệ phóng, tên lửa và dàn pin của trạm không gian.',archive:'Khám phá các kho dữ liệu và đường kết nối giữa chúng.',research:'Khám phá nhà kính nghiên cứu và các cụm dữ liệu theo chủ đề bài học.',neural:'Khám phá phòng thí nghiệm nơ-ron: các tầng nơ-ron phát sáng và dòng tín hiệu theo chủ đề bài học.'})[THEME] + ' Hoàn thành trạm trước để mở trạm tiếp theo; khi vào bài, thế giới tạm dừng.' }),
   h("p", { class: "q-nho", text: CAM_UNG ? "Kéo để di chuyển hoặc chạm trạm để đi tới." : "Di chuyển: WASD/phím mũi tên · Vào trạm: E · Xoay nhìn: kéo chuột." }),
   h("div", { class: "q-hang" }, [nutVao, h("a", { class: "q-lien-ket", href: CFG.trang_doc, text: "Học ở chế độ đọc" })]),
 ]));

@@ -14,7 +14,7 @@ const PREFIX = "py10";
 const CLASSES = ["10A1", "10A2", "10A3", "10A4", "10A5", "10A6", "10A7", "10A8", "10A9", "10A10"];
 const XP_PASS = 10, XP_FIRST_TRY = 5, STAR_LOSS = 10, RUN_LIMIT_MS = 3000;
 const STEPS = L.steps.filter(step=>step.kind!=='gate'||!selfStudy());
-// Chặng "Luyện thêm" (kind: "extra", sau Boss): không bắt buộc, không ảnh hưởng chứng chỉ.
+// Chặng "Luyện thêm" (kind: "extra", sau thử thách cuối): không bắt buộc, không ảnh hưởng chứng chỉ.
 STEPS.filter(s => s.kind === "extra").forEach(s => s.challenges.forEach(c => { c.extra = true; }));
 const REQUIRED = STEPS.filter(s => s.kind !== "extra").flatMap(s => (s.challenges || []).filter(c => !c.advanced && !c.bonus).map(c => c.id));
 const { hl, esc, normalizeOutput } = window.PY;
@@ -313,7 +313,7 @@ function shell() {
   </dialog>
   <dialog id="certDialog" class="modal wide">
     <div class="modal-card"><button class="close-x" type="button" data-close>×</button>
-      <p class="eyebrow">BOSS ĐÃ BỊ HẠ</p><h2>Chứng chỉ Bài ${L.number}</h2>
+      <p class="eyebrow">HOÀN THÀNH THỬ THÁCH CUỐI</p><h2>Chứng chỉ Bài ${L.number}</h2>
       <p class="muted">Lưu chứng chỉ tự học dạng PNG. Đây là kết quả quá trình, chưa phải điểm do giáo viên xác minh.</p>
       <canvas id="certCanvas" width="1600" height="1000" aria-label="Chứng chỉ"></canvas>
       <div class="row-btns"><button id="savePng" class="btn primary" type="button">Lưu PNG</button>
@@ -330,12 +330,12 @@ function renderRail() {
   rail.innerHTML = `
     <div class="rail-head"><div class="eyebrow">BÀI ${L.number}</div><div class="rail-title">${esc(L.title)}</div>
       <div class="rail-story">${esc(L.story)}</div>
-      <div class="prog"><div class="prog-bar" style="width:${pct}%"></div></div><div class="prog-text">${pct}% nhiệm vụ đạt</div><button id="studyMode" class="btn">${selfStudy()?"Học theo lớp":"Tự học / học bù"}</button><p class="muted">Con có thể chọn mọi chặng. Hoàn thành cần đạt các nhiệm vụ bắt buộc và Boss.</p></div>
+      <div class="prog"><div class="prog-bar" style="width:${pct}%"></div></div><div class="prog-text">${pct}% nhiệm vụ đạt</div><button id="studyMode" class="btn">${selfStudy()?"Học theo lớp":"Tự học / học bù"}</button><p class="muted">Con có thể chọn mọi chặng. Hoàn thành cần đạt các nhiệm vụ bắt buộc và thử thách cuối.</p></div>
     <ol class="steps">${STEPS.map((s, i) => {
       const un = stepUnlocked(i), done = stepDone(s), act = state.active === s.id;
       const ex = s.kind === "extra";
-      const mark = !un ? ic("lock") : ex ? ic("bolt") : done ? ic("check") : s.kind === "gate" ? ic("pause") : s.kind === "boss" ? ic("skull") : `<b>${s.number}</b>`;
-      const sub = s.kind === "gate" ? "Điểm dừng" : s.kind === "boss" ? "Boss" : ex ? "Không bắt buộc" : `Chặng ${s.number}`;
+      const mark = !un ? ic("lock") : ex ? ic("bolt") : done ? ic("check") : s.kind === "gate" ? ic("pause") : s.kind === "boss" ? ic("star") : `<b>${s.number}</b>`;
+      const sub = s.kind === "gate" ? "Điểm dừng" : s.kind === "boss" ? "Thử thách cuối" : ex ? "Không bắt buộc" : `Chặng ${s.number}`;
       const req = s.kind === "gate" ? null : s.challenges.filter(c => !c.advanced);
       const prog = req && un && (ex || !done) ? `<span class="st-prog">${req.filter(c => state.passed[c.id]).length}/${req.length}</span>` : "";
       return `<li><button type="button" class="st ${s.kind} ${done ? "done" : ""} ${act ? "active" : ""}" data-step="${s.id}" ${un ? "" : "disabled"}>
@@ -383,7 +383,7 @@ function renderStage(step) {
     </header>
     ${step.lesson ? `<div class="lesson">${step.lesson}</div>` : ""}
     <section class="tasks">
-      <h2 class="sec-h">${isBoss ? "Hạ Boss" : "Nhiệm vụ"}<span class="sec-count" id="secCount"></span></h2>
+      <h2 class="sec-h">${isBoss ? "Thử thách cuối" : "Nhiệm vụ"}<span class="sec-count" id="secCount"></span></h2>
       ${req.map(renderChallenge).join("")}
     </section>
     ${adv.length ? `<section class="tasks adv"><h2 class="sec-h">Nâng cao<span class="sec-sub">không bắt buộc — làm đủ ${adv.length} nhiệm vụ để có huy hiệu vàng</span></h2>${adv.map(renderChallenge).join("")}</section>` : ""}
@@ -397,14 +397,14 @@ function renderStage(step) {
   $("#certBtn")?.addEventListener("click", openCertificate);
   refreshFooter(step);
 }
-function nextLabel(n) { return n.kind === "gate" ? "Đến điểm dừng →" : n.kind === "boss" ? "Vào Boss →" : n.kind === "extra" ? "Luyện thêm →" : `Sang Chặng ${n.number} →`; }
+function nextLabel(n) { return n.kind === "gate" ? "Đến điểm dừng →" : n.kind === "boss" ? "Vào thử thách cuối →" : n.kind === "extra" ? "Luyện thêm →" : `Sang Chặng ${n.number} →`; }
 function bossBar(step) {
   const req = step.challenges.filter(c => !c.advanced);
   const hp = Math.round(100 * (1 - req.filter(c => state.passed[c.id]).length / req.length));
-  return `<div class="boss-card"><div class="boss-ava">${ic("skull")}</div><div class="boss-info">
-    <div class="boss-name">${esc(step.bossName || "BOSS")}<span>HP <b id="hpText">${hp}%</b></span></div>
+  return `<div class="boss-card"><div class="boss-ava">${ic("star")}</div><div class="boss-info">
+    <div class="boss-name">${esc(step.bossName || "Thử thách cuối")}<span>Còn lại <b id="hpText">${hp}%</b></span></div>
     <div class="hp"><div class="hp-bar" id="hpBar" style="width:${hp}%"></div></div>
-    ${step.bossLine ? `<p class="boss-line">“${esc(step.bossLine)}”</p>` : ""}</div></div>`;
+    </div></div>`;
 }
 function refreshFooter(step) {
   const note = $("#stageNote"), done = stepDone(step), next = $("#nextBtn");
@@ -419,7 +419,7 @@ function refreshFooter(step) {
     const hp = Math.round(100 * (1 - hit / req.length));
     if ($("#hpBar")) { $("#hpBar").style.width = `${hp}%`; $("#hpText").textContent = `${hp}%`; }
     const cert = $("#certBtn"); if (cert) cert.disabled = !allRequiredDone();
-    if (note) note.textContent = allRequiredDone() ? (isGold() ? "Boss bị hạ, đủ cả nhiệm vụ nâng cao — chứng chỉ có huy hiệu vàng." : "Boss bị hạ. Mở chứng chỉ để lưu và nộp.") : `Còn ${req.length - hit} đòn nữa.`;
+    if (note) note.textContent = allRequiredDone() ? (isGold() ? "Xong thử thách cuối và cả nhiệm vụ nâng cao: chứng chỉ có huy hiệu vàng." : "Xong thử thách cuối. Mở chứng chỉ để lưu và nộp.") : `Còn ${req.length - hit} câu nữa.`;
     return;
   }
   if (note) note.textContent = done ? "Hoàn thành chặng." : "Xong các nhiệm vụ ở trên để đi tiếp.";
@@ -755,7 +755,7 @@ function pass(c, card, msg, btn, starNow = false) {
   updateTop(); renderRail(); if (step.kind !== "gate") refreshFooter(step);
   if (step.kind === "boss" && first && allRequiredDone()) {
     beep("win"); confetti(null, true);
-    nova("<b>Boss đã bị hạ.</b> Lưu chứng chỉ để nộp. Còn thời gian thì thử phần Nâng cao để lấy huy hiệu vàng.", "happy");
+    nova("<b>Xong thử thách cuối.</b> Lưu chứng chỉ để nộp. Còn thời gian thì thử phần Nâng cao để lấy huy hiệu vàng.", "happy");
     if (!c.advanced && !window.LessonCelebration) setTimeout(openCertificate, 1100);
   }
 }
