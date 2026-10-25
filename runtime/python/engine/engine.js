@@ -44,6 +44,11 @@ function freshState(student) {
 function storageKey() { return `lsts:${PyCloud.user.id}:python-10:${PY10_CLOUD_CONFIG.runId}:${L.id}`; }
 function save() {
   if (!state || !PyCloud.allowed()) return;
+  // These fields are edited by learning.js after the engine loaded its snapshot.
+  const latest = PyCloud.state(L.id);
+  for (const field of ["learningNotes", "lessonFeedback", "miniProjects"]) {
+    if (Object.prototype.hasOwnProperty.call(latest, field)) state[field] = latest[field];
+  }
   state.student = PYAccount.student();
   state.completed = allRequiredDone();
   if (state.completed) state.badge = isGold() ? "gold" : "silver";
@@ -76,6 +81,7 @@ function percent() {
 /* ---------- chạy Python (Pyodide trong worker) ---------- */
 const PyRun = (() => {
   let worker = null, ready = false, ver = "", seq = 0, failed = "";
+  let queue = Promise.resolve(), session = 0;
   const waiting = new Map();
   const readyCbs = [];
   function status(text, cls) { const el = $("#pyStatus"); if (el) { el.textContent = text; el.className = `py-status ${cls}`; } }
@@ -89,12 +95,30 @@ const PyRun = (() => {
       else if (m.kind === "fail") { failed = m.error; status("Không tải được Python", "bad"); readyCbs.splice(0).forEach(f => f()); }
       else if (m.kind === "result") { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); clearTimeout(w.timer); w.resolve(m); } }
     };
-    worker.onerror = () => { failed = "worker"; status("Không tải được Python", "bad"); };
+    worker.onerror = () => {
+      ready = false; failed = "worker"; status("Không tải được Python", "bad");
+      readyCbs.splice(0).forEach(f => f());
+      for (const w of waiting.values()) {
+        clearTimeout(w.timer);
+        w.resolve({ out: "", err: { type: "WebError", msg: "Không tải được Python. Kiểm tra mạng rồi tải lại trang (F5).", tb: "" } });
+      }
+      waiting.clear();
+    };
   }
-  function stop() { worker?.terminate(); worker=null; ready=false; failed="signed_out"; readyCbs.splice(0).forEach(f=>f()); for(const w of waiting.values()){clearTimeout(w.timer);w.resolve({out:"",err:{type:"WebError",msg:"Đã đóng phòng thực hành.",tb:""}})}waiting.clear(); }
+  function stop() { session++; worker?.terminate(); worker=null; ready=false; failed="signed_out"; readyCbs.splice(0).forEach(f=>f()); for(const w of waiting.values()){clearTimeout(w.timer);w.resolve({out:"",err:{type:"WebError",msg:"Đã đóng phòng thực hành.",tb:""}})}waiting.clear(); }
   function whenReady() { return ready || failed ? Promise.resolve() : new Promise(r => readyCbs.push(r)); }
-  async function run(code, inputs = [], seed = null, options = {}) {
+  function run(code, inputs = [], seed = null, options = {}) {
+    const owner = session, capturedInputs = [...inputs], capturedOptions = { ...options };
+    const job = () => execute(code, capturedInputs, seed, capturedOptions, owner);
+    const pending = queue.then(job, job);
+    queue = pending.catch(() => {});
+    return pending;
+  }
+  async function execute(code, inputs, seed, options, owner) {
+    const closed = () => ({ ok: false, out: "", err: { type: "WebError", msg: "Đã đóng phòng thực hành.", tb: "" } });
+    if (owner !== session) return closed();
     await whenReady();
+    if (owner !== session) return closed();
     if (!PyCloud.allowed()) return {ok:false,out:"",err:{type:"WebError",msg:"Nhập tên/lớp và mở bài trước.",tb:""}};
     if (failed) return { ok: false, out: "", err: { type: "WebError", msg: "Không tải được Python. Kiểm tra mạng rồi tải lại trang (F5).", line: 0, tb: "" } };
     const id = ++seq;
@@ -588,6 +612,18 @@ function bindChallenge(c) {
 /* ---------- khung soạn code kiểu VS Code ---------- */
 function bindEditor(c, card) {
   const ta = $(".ed-ta", card), hlPre = $(".ed-hl", card), gut = $(".ed-gutter", card), out = $(".term-out", card), stdin = $(".stdin-box", card);
+  let revision = 0;
+  const clearFeedback = () => {
+    const feedback = $("[data-result]", card);
+    feedback.className = "result hidden";
+    feedback.innerHTML = "";
+    out.classList.remove("has-err");
+  };
+  const edited = () => {
+    revision++;
+    clearFeedback();
+    out.innerHTML = `<span class="muted">Code hoặc dữ liệu nhập đã thay đổi. Bấm Chạy hoặc Nộp kiểm tra để xem kết quả mới.</span>`;
+  };
   const sync = () => {
     const n = ta.value.split("\n").length;
     ta.rows = Math.max(5, n + 1);
@@ -596,7 +632,7 @@ function bindEditor(c, card) {
     updateBugs(c, card, ta.value);
   };
   sync();
-  ta.addEventListener("input", () => { state.drafts[c.id] = ta.value; save(); sync(); });
+  ta.addEventListener("input", () => { edited(); state.drafts[c.id] = ta.value; save(); sync(); });
   ta.addEventListener("scroll", () => { hlPre.scrollLeft = ta.scrollLeft; });
   guardTyping(ta);
   const put = (text, back = 0) => {
@@ -632,30 +668,42 @@ function bindEditor(c, card) {
       put("\n" + ind + extra);
     }
   });
-  stdin?.addEventListener("input", () => { state.inputs[c.id] = stdin.value; stdin.rows = Math.max(2, linesOf(stdin.value).length); save(); });
+  stdin?.addEventListener("input", () => { edited(); state.inputs[c.id] = stdin.value; stdin.rows = Math.max(2, linesOf(stdin.value).length); save(); });
   $('[data-act="reset-code"]', card).addEventListener("click", () => {
     if (!confirm("Trả khung code về như ban đầu? Phần bạn đã gõ sẽ mất.")) return;
-    ta.value = c.starter; state.drafts[c.id] = c.starter; save(); sync();
+    edited(); ta.value = c.starter; state.drafts[c.id] = c.starter; save(); sync();
     out.innerHTML = `<span class="muted">Đã trả về code ban đầu.</span>`;
   });
   const runBtn = $('[data-act="run"]', card), checkBtn = $('[data-act="check"]', card);
-  const busy = on => { [runBtn, checkBtn].forEach(b => { b.disabled = on; }); card.classList.toggle("running", on); };
-  runBtn.addEventListener("click", async () => {
-    busy(true); out.innerHTML = `<span class="muted">Đang chạy…</span>`;
-    const r = await PyRun.run(ta.value, linesOf(stdin ? stdin.value : ""), c.seed ?? null);
-    if(!state || !PyCloud.allowed())return;
-    busy(false); showRun(out, r, ta.value);
-  });
-  checkBtn.addEventListener("click", async ev => {
-    busy(true); out.innerHTML = `<span class="muted">Đang chấm…</span>`;
-    attempt(c.id);
-    const v = await checkCode(c, ta.value, stdin ? stdin.value : "");
-    if(!state || !PyCloud.allowed())return;
-    busy(false);
-    if (v.input != null && stdin) { stdin.value = v.input; stdin.rows = Math.max(2, linesOf(v.input).length); }
-    showRun(out, v.run, ta.value);
-    if (v.ok) pass(c, card, v.msg, ev.currentTarget); else miss(card, v.msg);
-  });
+  const busy = on => { [runBtn, checkBtn, $('[data-act="reset-code"]', card)].forEach(b => { b.disabled = on; }); card.classList.toggle("running", on); };
+  let running = false;
+  const execute = async (checking, button) => {
+    if (running) return;
+    const owner = state, active = state.active, version = revision;
+    const code = ta.value, input = stdin ? stdin.value : "";
+    const current = () => state === owner && PyCloud.allowed() && state.active === active && card.isConnected && revision === version;
+    running = true; busy(true); clearFeedback();
+    out.innerHTML = `<span class="muted">${checking ? "Đang chấm…" : "Đang chạy…"}</span>`;
+    try {
+      if (checking) attempt(c.id);
+      const v = checking ? await checkCode(c, code, input) : { run: await PyRun.run(code, linesOf(input), c.seed ?? null) };
+      if (!current()) return;
+      if (checking && v.input != null && stdin) {
+        stdin.value = v.input; stdin.rows = Math.max(2, linesOf(v.input).length);
+        state.inputs[c.id] = v.input; save();
+      }
+      showRun(out, v.run, code);
+      if (checking) {
+        if (v.ok) pass(c, card, v.msg, button); else miss(card, v.msg);
+      } else if (v.run.ok) result(card, "info", "Chạy xong với dữ liệu nhập hiện tại. Bấm Nộp kiểm tra để kiểm tra các ca và yêu cầu của bài.");
+    } catch (error) {
+      if (current()) showRun(out, { ok: false, out: "", err: { type: "WebError", msg: error.message || String(error), tb: "" } }, code);
+    } finally {
+      running = false; busy(false);
+    }
+  };
+  runBtn.addEventListener("click", () => execute(false, runBtn));
+  checkBtn.addEventListener("click", () => execute(true, checkBtn));
 }
 
 function noPasteMsg() { const d = $("#typeDialog"); if (d && !d.open) d.showModal(); }
@@ -701,10 +749,10 @@ function firstDiff(a, e) {
 
 async function checkCode(c, code, currentInput) {
   const tests = c.tests || [{ input: currentInput, expected: c.expected }];
-  let last = null;
+  let last = null, lastInput = "";
   for (const [n, t] of tests.entries()) {
     const r = await PyRun.run(code, linesOf(t.input), c.seed ?? null);
-    last = r;
+    last = r; lastInput = t.input ?? "";
     const where = tests.length > 1 ? `Ca ${n + 1}${t.input ? ` (nhập ${esc(t.input.replace(/\n/g, " ⏎ "))})` : ""}: ` : "";
     if (!r.ok) return { ok: false, run: r, input: t.input, msg: where + "code chưa chạy được. Đọc phần lỗi trong TERMINAL rồi sửa nhé." };
     if (t.expected != null) {
@@ -712,9 +760,9 @@ async function checkCode(c, code, currentInput) {
       if (a !== e) return { ok: false, run: r, input: t.input, msg: where + (firstDiff(a, e) || "Terminal chưa khớp mẫu.") };
     }
   }
-  for (const rule of c.rules || []) if (!rule.test(code, last.out)) return { ok: false, run: last, msg: rule.msg };
-  if (c.bugs && !c.bugs.every(b => b.fixed(code))) return { ok: false, run: last, msg: "Terminal đúng rồi, nhưng vẫn còn bọ trong code. Xem con bọ nào chưa bị hạ." };
-  return { ok: true, run: last, msg: c.why || ("Chính xác — terminal khớp mẫu." + (tests.length > 1 ? ` Đạt cả ${tests.length} ca.` : "")) };
+  for (const rule of c.rules || []) if (!rule.test(code, last.out)) return { ok: false, run: last, input: lastInput, msg: rule.msg };
+  if (c.bugs && !c.bugs.every(b => b.fixed(code))) return { ok: false, run: last, input: lastInput, msg: "Terminal đúng rồi, nhưng vẫn còn bọ trong code. Xem con bọ nào chưa bị hạ." };
+  return { ok: true, run: last, input: lastInput, msg: c.why || ("Chính xác — terminal khớp mẫu." + (tests.length > 1 ? ` Đạt cả ${tests.length} ca.` : "")) };
 }
 
 function attempt(id) { state.attempts[id] = (state.attempts[id] || 0) + 1; save(); }

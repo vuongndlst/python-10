@@ -53,13 +53,45 @@ window.LessonLearning=(C)=>{
  function mountProject(project,root){
   const box=document.createElement('details');box.className='learning-project';box.dataset.project=project.id;const old=C.peek().miniProjects?.[project.id]||{};
   box.innerHTML=`<summary>${esc(project.title)}</summary><p>${esc(project.prompt)}</p><p><b>Đầu vào/kết quả cần đạt:</b> ${esc(project.contract)}</p><div class="learning-flow"><span>Lập kế hoạch</span><b>→</b><span>Chạy và kiểm thử</span><b>→</b><span>Giải thích</span></div><label>Mã của con<textarea class="project-code" rows="9" maxlength="15000" spellcheck="false"></textarea></label><label>Dữ liệu nhập (mỗi dòng một lần nhập)<textarea class="project-input" rows="2" maxlength="1000"></textarea></label><div class="learning-actions"><button class="project-run">Chạy mã</button><button class="project-test">Chạy test case</button><button class="project-download">Tải sản phẩm</button></div><pre class="project-output" role="status">Kết quả sẽ hiện ở đây.</pre><label>Giải thích và hạn chế<textarea class="project-reflection" rows="3" maxlength="2000"></textarea></label><table><thead><tr><th>Tiêu chí</th><th>Minh chứng để đạt</th></tr></thead><tbody>${project.rubric.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table><p>Lưu cục bộ; nộp sản phẩm qua Canvas theo hướng dẫn giáo viên.</p>`;
-  const code=box.querySelector('.project-code'),input=box.querySelector('.project-input'),reflection=box.querySelector('.project-reflection'),out=box.querySelector('.project-output');code.value=old.code||project.starter;input.value=old.input||'';reflection.value=old.reflection||'';
-  const collect=()=>({code:code.value,input:input.value,reflection:reflection.value,updated_at:new Date().toISOString()});const save=extra=>C.save(key,{...C.peek(),miniProjects:{...C.peek().miniProjects,[project.id]:{...collect(),...extra}}});[code,input,reflection].forEach(e=>e.oninput=()=>save());
-  const run=async(stdin)=>kind==='cpp'?CppRun.run(code.value,stdin,{echo:false}):PyRun.run(code.value,stdin.split(/\r?\n/),null,{echo:false});
-  const errorText=r=>typeof r.error==='string'?r.error:r.err?.msg||r.err?.type||'Chưa chạy được';
+  const code=box.querySelector('.project-code'),input=box.querySelector('.project-input'),reflection=box.querySelector('.project-reflection'),out=box.querySelector('.project-output');code.value=old.code??project.starter;input.value=old.input??project.tests?.[0]?.input??'';reflection.value=old.reflection??'';
+  const collect=()=>({code:code.value,input:input.value,reflection:reflection.value,updated_at:new Date().toISOString()});
+  const save=extra=>C.save(key,{...C.peek(),miniProjects:{...C.peek().miniProjects,[project.id]:{...C.peek().miniProjects?.[project.id],...collect(),...extra}}});
+  let revision=0,running=false;
+  code.oninput=()=>{revision++;out.textContent='Mã đã thay đổi. Chạy lại hoặc chạy test case để kiểm tra bản mới.';save({tests:[],lastOutput:null});};
+  input.oninput=()=>{revision++;out.textContent='Dữ liệu nhập đã thay đổi. Bấm Chạy mã để xem kết quả mới.';save({lastOutput:null});};
+  reflection.oninput=()=>save();
+  const run=async(source,stdin)=>kind==='cpp'?CppRun.run(source,stdin,{echo:false}):PyRun.run(source,stdin===''?[]:stdin.replace(/\r/g,'').split('\n'),null,{echo:false});
+  const errorText=r=>{
+   if(r.err?.type==='HetNhap')return 'Thiếu dữ liệu nhập. Điền đủ các dòng trong ô Dữ liệu nhập rồi chạy lại. Chạy test case dùng dữ liệu mẫu riêng của từng ca.';
+   if(r.err?.type==='Timeout')return 'Chương trình chạy quá thời gian. Kiểm tra điều kiện dừng của vòng lặp.';
+   return typeof r.error==='string'?r.error:[r.err?.type,r.err?.line?'dòng '+r.err.line:'',r.err?.msg].filter(Boolean).join(' · ')||'Chưa chạy được';
+  };
   const norm=s=>String(s||'').replace(/\r/g,'').trim();
-  box.querySelector('.project-run').onclick=async e=>{e.target.disabled=true;try{const r=await run(input.value);out.textContent=r.ok?(r.output??r.out):errorText(r);save({lastOutput:out.textContent});}catch(x){out.textContent=x.message;}finally{e.target.disabled=false;}};
-  box.querySelector('.project-test').onclick=async e=>{e.target.disabled=true;try{const rows=[];for(const t of project.tests){const r=await run(t.input);rows.push({input:t.input,expected:t.expected,actual:r.output??r.out,ok:r.ok&&norm(r.output??r.out)===norm(t.expected)});}out.textContent=rows.map((r,i)=>`${kind==='cpp'?'Test case':'Ca'} ${i+1}: ${r.ok?'✓ Đạt':'Cần sửa'}\nNhập: ${r.input||'(không)'}\nCần: ${r.expected}\nCó: ${r.actual||'(trống)'}`).join('\n\n');save({tests:rows});}catch(x){out.textContent=x.message;}finally{e.target.disabled=false;}};
+  const runButton=box.querySelector('.project-run'),testButton=box.querySelector('.project-test');
+  const execute=async testing=>{
+   if(running)return;
+   const source=code.value,stdin=input.value,version=revision,user=C.user?.id;
+   const current=()=>box.isConnected&&C.allowed()&&C.user?.id===user&&revision===version;
+   running=true;runButton.disabled=testButton.disabled=true;
+   out.textContent=testing?'Đang chạy test case…':'Đang chạy mã với dữ liệu trong ô nhập…';
+   try{
+    if(testing){
+     const rows=[];
+     for(const t of project.tests){
+      if(!current())return;
+      const r=await run(source,t.input||'');
+      rows.push({input:t.input,expected:t.expected,actual:r.output??r.out,ok:r.ok&&norm(r.output??r.out)===norm(t.expected),error:r.ok?'':errorText(r)});
+     }
+     if(!current())return;
+     out.textContent=rows.map((r,i)=>`${kind==='cpp'?'Test case':'Ca'} ${i+1}: ${r.ok?'✓ Đạt':'Cần sửa'}\nNhập: ${r.input||'(không)'}\nCần: ${r.expected}\nCó: ${r.actual||'(trống)'}${r.error?'\nLỗi: '+r.error:''}`).join('\n\n');save({tests:rows,lastOutput:out.textContent});
+    }else{
+     const r=await run(source,stdin);if(!current())return;
+     out.textContent=r.ok?(r.output??r.out)||'(Chương trình chạy xong nhưng không in gì.)':errorText(r);save({lastOutput:out.textContent});
+    }
+   }catch(x){if(current())out.textContent=x.message||String(x);}
+   finally{running=false;runButton.disabled=testButton.disabled=false;}
+  };
+  runButton.onclick=()=>execute(false);testButton.onclick=()=>execute(true);
   box.querySelector('.project-download').onclick=()=>S.download(key+'-'+project.id+'.json',{format:'lsts-mini-project',lesson:key,project:project.id,student:{name:C.profile.display_name,class_label:C.profile.class_label},...collect(),tests:C.peek().miniProjects?.[project.id]?.tests||[],rubric:project.rubric});root.append(box);
  }
  let timer;const observer=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(annotate,40)});observer.observe(document.body,{childList:true,subtree:true});annotate();
